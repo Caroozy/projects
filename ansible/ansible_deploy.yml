@@ -1,0 +1,74 @@
+- name: install nginx
+  hosts: ec2
+    
+  tasks:
+    - name: install nginx
+      apt:
+        update_cache: true
+        cache_valid_time: 86000
+        name: nginx
+        state: latest
+
+    - name: copy nginx conf
+      become: yes
+      copy: 
+        src: ./nginx/nginx.conf
+        dest: /etc/nginx/nginx.conf
+      notify:
+        - restart nginx
+
+  handlers: 
+    - name: restart nginx
+      become: yes
+      systemd_service:
+        state: restarted
+        name: nginx
+
+- name: deploy weather app in container
+  hosts: ec2
+    
+  tasks:
+
+    - name: ensures ~/docker exists
+      file:
+        path: ~/docker
+        state: directory
+
+    - name: copy docker engine script
+      copy:
+        src: ./docker/docker.sh
+        dest: ~/docker/script.sh
+        owner: ubuntu
+        group: ubuntu
+        mode: +x
+
+    - name: setup docker repo
+      shell: /home/ubuntu/docker/script.sh
+       
+    - name: setup privileges
+      shell: sudo usermod -aG docker ubuntu
+       
+
+    - name: install docker
+      apt: 
+       update_cache: true
+       cache_valid_time: 86000
+       pkg:
+         - docker-ce 
+         - docker-ce-cli 
+         - containerd.io
+         - docker-buildx-plugin  
+         - docker-compose-plugin
+
+
+    - name: stop containers if exist
+      community.docker.docker_container:
+        name: weather-app
+        state: absent
+
+    - name: run docker image
+      community.docker.docker_container:
+        name: weather-app
+        image: caroozy/jenkins-weather:132
+        restart: true
+        auto_remove: true

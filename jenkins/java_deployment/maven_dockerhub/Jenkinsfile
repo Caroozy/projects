@@ -1,0 +1,66 @@
+pipeline {
+
+    environment {
+	    SONAR_TOKEN = credentials('sonarqube-token')
+	    registry = "caroozy/jenkins-calculator"
+            registryCredential = 'dockerhub-cred'
+            dockerImage = ''
+	}
+    
+    tools {
+	maven 'maven-use'
+    }
+	
+    agent { label 'self_docker' }
+    
+    stages {
+        stage('Clone dockerfile from repo') {
+            steps {
+                git (
+                    url: "http://172.31.26.112/root/calculator.git",
+                    branch: "development"
+                )
+            }
+        }
+        stage('testing') {
+            steps {
+		sh "docker build --build-arg SONAR_TOKEN=${SONAR_TOKEN} -t calc:test -f ./test_image/Dockerfile ."
+		sh 'docker rmi calc:test'
+            }
+        }
+	stage('build'){
+	    steps{
+	        script{
+                    image = docker.build("${registry}:${BUILD_NUMBER}", '-f ./final_image/Dockerfile .')
+                }
+	    }
+	}
+	stage('upload artifact') {
+	    steps {
+		script{
+		    docker.withRegistry('', registryCredential) {
+		        image.push()
+		    }
+		}
+	    }
+	}
+    }
+    
+    post {
+        
+        success{
+            sh "docker rmi ${registry}:${BUILD_NUMBER}"
+        }
+        
+        always {
+            sh 'docker system prune -f'
+	    sh 'mvn clean'
+            script {
+                mail to: 'crazyman329gaming@gmail.com',
+                subject: "Jenkins-Calculator - Build # $BUILD_NUMBER - $currentBuild.currentResult!",
+                body: "Jenkins-Calculator - Build # $BUILD_NUMBER - $currentBuild.currentResult\nCheck console output at $BUILD_URL to view the results."
+            }
+        }
+    }
+}
+

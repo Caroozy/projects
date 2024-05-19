@@ -1,0 +1,6 @@
+pandas
+Flask
+requests
+gunicorn
+pyinstaller
+deep-translator

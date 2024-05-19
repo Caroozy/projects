@@ -1,0 +1,42 @@
+pipeline {
+
+    environment {
+	    SONAR_TOKEN = credentials('sonarqube-token')
+	    JFROG_TOKEN = credentials('jfrog-artifactory-token')
+	}
+	
+    agent { label 'self_docker' }
+    
+    stages {
+        stage('Clone dockerfile from repo') {
+            steps {
+                git (
+                    url: "http://172.31.26.112/root/calculator.git",
+                    branch: "dockerfile"
+                )
+            }
+        }
+        stage('Build test and deploy in docker build') {
+            steps {
+		sh 'docker build --build-arg SONAR_TOKEN=${SONAR_TOKEN} --build-arg JFROG_TOKEN=${JFROG_TOKEN} -t calc:jre-11 .'
+            }
+        }
+    }
+    
+    post {
+        
+        success{
+            sh 'docker rmi calc:jre-11'
+        }
+        
+        always {
+            sh 'docker system prune -f'
+            script {
+                mail to: 'crazyman329gaming@gmail.com',
+                subject: "Jenkins-Calculator - Build # $BUILD_NUMBER - $currentBuild.currentResult!",
+                body: "Jenkins-Calculator - Build # $BUILD_NUMBER - $currentBuild.currentResult\nCheck console output at $BUILD_URL to view the results."
+            }
+        }
+    }
+}
+

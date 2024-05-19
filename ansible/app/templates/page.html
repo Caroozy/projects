@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Daniel's weather forecast</title>
+</head>
+<body>
+    <h1>A simple basic weather app</h1>
+    <br>
+    <form action="/result" method="POST">
+        <label for="location">Any location:</label>
+        <input type="text" id="location" name="location">
+        <br>
+    </form>
+    {% if week is not none %}
+    <div class="location">
+        <br>
+        <h2>Location:</h2>
+        <h2 id="loc">{{week.get_location()}}</h2>
+    </div>
+    <div class="weather">
+        {% for day in week.get_days() %}
+        <br>
+        <h3>Date: {{ day.get_date() }}</h3>
+        <h3>Day: {{ day.get_day_week() }}</h3>
+        <h3>Day temperature: {{ day.get_day_temp() }}°C</h3>
+        <h3>Night temperature: {{ day.get_night_temp() }}°C</h3>
+        <h3>Average humidity: {{ day.get_humidity() }}%</h3>
+        {% endfor %}
+    </div>
+{% endif %}
+</body>
+</html>

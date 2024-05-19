@@ -1,0 +1,105 @@
+pipeline {
+        environment {
+            registry = "caroozy/jenkins-weather"
+            registryCredential = 'dockerhub-cred'
+            dockerImage = ''
+        }
+        agent { label 'self_docker' }
+        stages {
+            stage ('build') {
+                        steps {
+                            git (
+                            url: "http://172.31.26.112/root/weather_app.git",
+                            branch: "development"
+                            )
+                            script {
+                                try {
+                                    image = docker.build(registry + ':' + BUILD_NUMBER, '.')
+                                    docker.build('weather:test', './tests/')
+                                } catch (err) {
+                                    msg = "Build failed at the image creation stage check logs at $BUILD_URL"
+                                    sh 'false'
+                                }
+                            }
+                        }
+                }
+            stage ('test') {
+                        steps {
+                            script {
+				try { sh 'docker network rm tests' } catch (err) { sh 'echo ' + err.getMessage() }
+                                try {
+                                    sh 'docker network create tests'
+                                } catch (err){
+                                    msg = "Failed to create network check worker docker network settings $BUILD_URL"
+				    sh 'false'
+                                }
+                            }
+                            sh 'docker run --network tests --name jenkins-app -d weather:app'
+                            script {
+                                try {
+                                    sh 'sleep 5'
+                                    sh 'docker run --network tests --name jenkins-tests weather:test /test_reach'
+                                } catch (err ) {
+                                    msg = "Tests failed, check logs at $BUILD_URL"
+                                    sh 'false'
+                                }
+				try {
+                                    sh 'docker stop jenkins-app'
+                                } catch (err ) {
+                                    msg = "App not running after tests, check logs at $BUILD_URL"
+                                    sh 'false'
+                                }
+                                docker.withRegistry('', registryCredential) {
+                                    image.push()
+                                }
+                            }
+                        }
+                    }
+            stage ('deploy') {
+                        agent { label 'docker_prod' }
+                        steps {
+                            script {
+                                try {
+                                    sh 'docker stop app'
+                                 } catch (err) {
+                                    sh 'echo App not running'
+                                }
+                                try {
+                                    sh 'docker system prune -f'	
+                                } catch (err) {
+                                    sh 'echo ' + err.getMessage()
+                                }
+                                try {
+                                    sh "docker run --name app -p 8989:8989 --restart always -d $registry:$BUILD_NUMBER"
+                                } catch (err) {
+                                    msg = "deploying the container failed, check logs at $BUILD_URL"
+                                    sh 'false'
+                                }
+                            }
+                        }
+                }
+        }
+        post {
+            success {
+                script {
+                    slackSend(channel: 'succeeded-build', message: "build successful: " + BUILD_NUMBER, color: 'good')
+                }
+            }
+            failure {
+                slackSend(channel: 'devops-alerts', message: "build failed: " + BUILD_NUMBER + '\n' + msg, color: 'danger')
+            }
+            always {
+		script {
+		    try { 
+			sh 'docker stop jenkins-app' 
+			} catch (err) {;}
+		}
+		sh 'docker rm jenkins-app' 
+        	sh 'docker rm jenkins-tests'
+	        sh 'docker rmi ' + registry + ':' + BUILD_NUMBER
+		sh 'docker network rm tests'
+                sh 'docker system prune -f && docker image prune -f'
+        	}
+	}
+}
+
