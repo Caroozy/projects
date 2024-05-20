@@ -57,7 +57,7 @@ def get_weather(usr_input, cache):
 
         return objects.WeekWeather(days, location.replace('-', ' '))
 
-    key_weather_visualcrossing_com = 'T33TWNHB423S4MQW8MYGAM7KZ'
+    key_weather_visualcrossing_com = os.getenv("WEATHER_KEY")
     params = {
         'key': key_weather_visualcrossing_com,
         'unitGroup': 'metric',
